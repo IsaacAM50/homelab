@@ -13,14 +13,20 @@ resource "proxmox_virtual_environment_vm" "vm" {
     full  = true
   }
 
-  # OJO: esto solo le dice a Proxmox que INTENTE hablar con el agente. Si
-  # qemu-guest-agent no está instalado DENTRO de la imagen, cada creación
-  # se queda esperando hasta agotar el tiempo. Compruébalo antes con
-  # 'qm agent 101 ping' sobre una VM encendida: si responde "guest agent is
-  # not running", mete el agente en la plantilla o pon enabled = false.
+  # Desactivado a propósito en la creación. Con el agente activo, el
+  # proveedor espera a que algo DENTRO de la VM le conteste antes de dar
+  # por buena la máquina: si qemu-guest-agent no está en la imagen, cada
+  # VM se cuelga hasta agotar el tiempo.
+  #
+  # Es un huevo y gallina: lo que crea la máquina no debe depender de algo
+  # que vive dentro de la máquina. Y aquí no hace falta, porque las IPs
+  # son estáticas y vienen de cloud-init, no de preguntárselas al agente.
+  #
+  # Ansible instala qemu-guest-agent en el rol 'base'. Cuando todas las
+  # VMs lo tengan, puedes poner enabled = true y ganarás el apagado limpio
+  # y la IP reportada en la UI de Proxmox.
   agent {
-    enabled = true
-    timeout = "3m"
+    enabled = false
   }
 
   cpu {

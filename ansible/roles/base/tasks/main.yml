@@ -20,6 +20,10 @@
       - ncdu
       - net-tools
       - python3-pip
+      # Deja que Proxmox apague la VM de forma limpia y reporte su IP.
+      # Va aquí y no en la plantilla: crear la VM no debe depender de algo
+      # que vive dentro de la VM.
+      - qemu-guest-agent
       - ripgrep
       - rsync
       - tmux
