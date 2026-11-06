@@ -1,9 +1,12 @@
 # Copia a terraform.tfvars y ajusta. Ese fichero está en .gitignore.
 # El token NO va aquí: lo genera ansible/pve.yml en secrets.auto.tfvars.
 
-# La IP de tu Proxmox. La ves en la consola al arrancar, arriba del login.
-pve_endpoint = "https://192.168.1.XXX:8006"
-pve_node     = "pve"
+# La IP de tu Proxmox y el nombre del NODO, que no es lo mismo que el
+# hostname por defecto: el tuyo se llama 'isaac', no 'pve'. Si te
+# equivocas aquí, el error que da OpenTofu no es nada evidente.
+# Compruébalo con: ssh root@192.168.1.180 hostname
+pve_endpoint = "https://192.168.1.180:8006"
+pve_node     = "isaac"
 
 # Tu instalación es sobre LVM-thin, no ZFS.
 storage = "local-lvm"

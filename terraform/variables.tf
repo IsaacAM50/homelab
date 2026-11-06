@@ -10,9 +10,8 @@ variable "pve_api_token" {
 }
 
 variable "pve_node" {
-  description = "Nombre del nodo Proxmox. Por defecto 'pve' salvo que lo cambiaras al instalar."
+  description = "Nombre del nodo Proxmox, que es su hostname. Compruébalo con 'hostname' por SSH: no tiene por qué ser 'pve'."
   type        = string
-  default     = "pve"
 }
 
 variable "template_vmid" {
