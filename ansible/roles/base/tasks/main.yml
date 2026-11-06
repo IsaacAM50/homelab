@@ -61,6 +61,23 @@
     group: root
     validate: "visudo -cf %s"
 
+# Tiene que ir ANTES de los sysctl: net.bridge.bridge-nf-call-iptables no
+# existe hasta que br_netfilter está cargado, y en una VM recién hecha no
+# lo está. Lo acaban cargando Docker o k3s, pero eso ocurre más tarde, así
+# que el sysctl falla con un "No such file or directory" que no menciona
+# el módulo por ningún lado.
+#
+# 'persistent' además lo deja escrito en /etc/modules-load.d, para que
+# sobreviva a un reinicio sin depender de que algo lo cargue por su cuenta.
+- name: Cargar los módulos de kernel que necesita Kubernetes
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop:
+    - overlay
+    - br_netfilter
+
 # Los límites de inotify por defecto de Ubuntu se agotan con pocos pods y
 # producen errores que no parecen de inotify: "too many open files" en
 # kubelet, builds que se cuelgan, Argo CD que deja de ver cambios.
@@ -85,6 +102,8 @@
     - k: net.ipv4.ip_forward
       v: "1"
     - k: net.bridge.bridge-nf-call-iptables
+      v: "1"
+    - k: net.bridge.bridge-nf-call-ip6tables
       v: "1"
   loop_control:
     label: "{{ item.k }}"
