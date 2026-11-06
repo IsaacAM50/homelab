@@ -109,6 +109,7 @@ propio estado.
 | `stdout_callback = yaml` en `ansible.cfg` | El callback de `community.general` se eliminó en su versión 12. Nada arranca: el error aparece antes de la primera tarea | Callback por defecto con `callback_result_format = yaml` |
 | `result_format` como clave del `ansible.cfg` | La clave correcta es `callback_result_format`. Una clave que no existe **se ignora en silencio**: ni error, ni aviso, ni efecto | Confirmada con `ansible-doc -t callback ansible.builtin.default` |
 | `pve_node` con valor por defecto `"pve"` | El nodo se llamaba `isaac`. Un valor por defecto que casi siempre está mal deja seguir hasta que falla lejos del origen | Variable sin defecto: OpenTofu obliga a escribirla |
+| DNS del hipervisor en `192.168.0.1` | La red es `192.168.1.x`. Un octeto. Internet funcionaba por IP, pero toda consulta de nombre se iba a una máquina inexistente y agotaba el tiempo. El síntoma era `apt`, la causa estaba tres capas más abajo, y el repositorio no tenía nada que ver | `ip route` + `resolv.conf` + ping a la IP cruda **antes** de tocar el repositorio. Arreglado con `pvesh set /nodes/<nodo>/dns`, no editando `/etc/resolv.conf`, que la interfaz sobrescribe |
 | `config.toml` de mise escrito antes de crear su directorio | Falla en una máquina limpia y funciona en una ya configurada: solo aparece al reinstalar | Crear el directorio primero |
 
 *(Esta tabla crece según se use. Es la parte más útil del repo.)*
