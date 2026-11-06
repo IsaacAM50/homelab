@@ -1,7 +1,8 @@
 # Copia a terraform.tfvars y ajusta. Ese fichero está en .gitignore.
 # El token NO va aquí: lo genera ansible/pve.yml en secrets.auto.tfvars.
 
-pve_endpoint = "https://192.168.1.50:8006"
+# La IP de tu Proxmox. La ves en la consola al arrancar, arriba del login.
+pve_endpoint = "https://192.168.1.XXX:8006"
 pve_node     = "pve"
 
 # Tu instalación es sobre LVM-thin, no ZFS.
@@ -11,8 +12,8 @@ bridge  = "vmbr0"
 # La plantilla que ya tenías hecha.
 template_vmid = 9000
 
-# Ajusta a tu red real. Elige un rango POR ENCIMA del que reparte el
-# router por DHCP, para que no choquen las direcciones.
+# Tu red. Las VMs van de .201 a .206: comprueba antes que tu router no
+# reparta tan arriba por DHCP, o dos máquinas acabarán con la misma IP.
 network_prefix = "192.168.1"
 gateway        = "192.168.1.1"
 

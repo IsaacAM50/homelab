@@ -1,6 +1,9 @@
 ---
-- name: Montar el equipo de laboratorio desde cero
-  hosts: lab
+# Configura las VMs que creó OpenTofu. El inventario de máquinas sale de
+# terraform/outputs.tf, no se escribe a mano.
+
+- name: Base común a todas las máquinas
+  hosts: k3s_server:k3s_agents:storage:lb:monitoring
   become: true
   gather_facts: true
 
@@ -25,11 +28,13 @@
     - role: base
       tags: [base]
 
+    # Opcional: con el hipervisor anunciando la subred por Tailscale, las
+    # VMs son alcanzables sin instalar Tailscale en cada una. Seis nodos
+    # menos en tu cuenta.
     - role: tailscale
       tags: [tailscale, red]
+      when: lab_tailscale_on_vms | bool
 
-    # Después de Tailscale: el cortafuegos necesita que exista tailscale0
-    # antes de abrirle paso, y el SSH se cierra con la red ya puesta.
     - role: hardening
       tags: [hardening, seguridad]
 
@@ -39,19 +44,34 @@
     - role: tooling
       tags: [tooling, herramientas]
 
-    - role: k3s
-      tags: [k3s, kubernetes]
-      when: k3s_enabled | bool
+# El servidor va en su propia obra porque publica el token que los
+# agentes necesitan. Ansible solo propaga hechos entre obras si la del
+# servidor ha corrido antes en la misma ejecución.
+- name: Nodo servidor de k3s
+  hosts: k3s_server
+  become: true
+  gather_facts: true
+  roles:
+    - role: k3s_server
+      tags: [k3s, k3s_server]
 
-    - role: wol
-      tags: [wol]
-      when: wol_enabled | bool
+- name: Nodos agente de k3s
+  hosts: k3s_agents
+  become: true
+  gather_facts: true
+  roles:
+    - role: k3s_agent
+      tags: [k3s, k3s_agent]
 
-  post_tasks:
-    - name: Resumen
+- name: Resumen
+  hosts: k3s_server
+  gather_facts: false
+  tasks:
+    - name: Cómo usar el clúster
       ansible.builtin.debug:
         msg:
-          - "Equipo listo: {{ inventory_hostname }} ({{ ansible_distribution }} {{ ansible_distribution_version }})"
-          - "Entra con: ssh {{ lab_user }}@lab"
-          - "k3s: {{ 'activo' if k3s_enabled else 'desactivado' }}"
+          - "Clúster listo. Desde la MacBook:"
+          - "  export KUBECONFIG={{ playbook_dir }}/../kubeconfig"
+          - "  kubectl get nodes"
+          - "Deberías ver {{ groups['k3s_agents'] | length + 1 }} nodos."
       tags: [always]

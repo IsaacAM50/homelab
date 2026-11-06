@@ -1,0 +1,84 @@
+---
+- name: Comprobar si k3s ya está instalado
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_server_bin
+
+- name: Descargar el instalador de k3s
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s-install.sh
+    mode: "0755"
+  when: not k3s_server_bin.stat.exists
+
+- name: Instalar el nodo servidor
+  ansible.builtin.command: /tmp/k3s-install.sh
+  environment:
+    INSTALL_K3S_EXEC: >-
+      server {{ k3s_exec_args }}
+      --tls-san={{ ansible_default_ipv4.address }}
+      --node-ip={{ ansible_default_ipv4.address }}
+  args:
+    creates: /usr/local/bin/k3s
+  when: not k3s_server_bin.stat.exists
+
+- name: Esperar a que el apiserver responda
+  ansible.builtin.wait_for:
+    port: 6443
+    host: 127.0.0.1
+    timeout: 180
+  when: not ansible_check_mode
+
+- name: Leer el token que necesitan los agentes
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_server_token_raw
+  when: not ansible_check_mode
+
+# Lo publica como hecho del host para que la obra de los agentes lo lea
+# con hostvars. Así el token nunca se escribe en disco de la MacBook.
+- name: Publicar el token para la obra de los agentes
+  ansible.builtin.set_fact:
+    k3s_server_node_token: "{{ k3s_server_token_raw.content | b64decode | trim }}"
+  when: not ansible_check_mode
+  no_log: true
+
+- name: Crear el directorio .kube del usuario
+  ansible.builtin.file:
+    path: "/home/{{ lab_user }}/.kube"
+    state: directory
+    owner: "{{ lab_user }}"
+    group: "{{ lab_user }}"
+    mode: "0700"
+
+- name: Copiar el kubeconfig al usuario
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ lab_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ lab_user }}"
+    group: "{{ lab_user }}"
+    mode: "0600"
+  when: not ansible_check_mode
+
+# Para que el mismo kubeconfig sirva desde la MacBook, no solo dentro del
+# nodo. Sin esto apunta a 127.0.0.1 y desde fuera no vale para nada.
+- name: Apuntar el kubeconfig a la IP del nodo en vez de a localhost
+  ansible.builtin.replace:
+    path: "/home/{{ lab_user }}/.kube/config"
+    regexp: "https://127\\.0\\.0\\.1:6443"
+    replace: "https://{{ ansible_default_ipv4.address }}:6443"
+  when: not ansible_check_mode
+
+- name: Traerse el kubeconfig a la MacBook
+  ansible.builtin.fetch:
+    src: "/home/{{ lab_user }}/.kube/config"
+    dest: "{{ playbook_dir }}/../kubeconfig"
+    flat: true
+  when: not ansible_check_mode
+
+- name: Asegurar que k3s arranca con la máquina
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true

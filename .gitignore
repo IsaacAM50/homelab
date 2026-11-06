@@ -1,6 +1,12 @@
 # Secretos: la clave del vault NUNCA se sube
 .vault-pass
-inventory/group_vars/vault.yml
+ansible/inventory/group_vars/vault.yml
+
+# Inventario de VMs: lo genera OpenTofu desde su estado
+ansible/inventory/vms.yml
+
+# Kubeconfig: lo trae Ansible del nodo servidor
+kubeconfig
 
 # Estado local
 *.retry

@@ -6,7 +6,7 @@
 #   ansible-playbook pve.yml                   # dejarlo listo
 
 - name: Preparar el hipervisor Proxmox
-  hosts: pve
+  hosts: proxmox
   become: false
   gather_facts: true
 

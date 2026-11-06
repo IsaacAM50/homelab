@@ -35,10 +35,15 @@ tool_versions:
   yq: "4.47.1"
 
 # ─── k3s ────────────────────────────────────────────────────────────────
-k3s_enabled: true
+# Qué nodo es servidor y cuáles agentes lo decide el grupo del inventario,
+# que genera OpenTofu. Aquí solo van los argumentos del servidor.
+#
 # Traefik fuera: en R1 instalas tu propio ingress o Gateway API.
 # servicelb fuera: usarás MetalLB, que es lo que se parece a la realidad.
 k3s_exec_args: "--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644"
 
-# ─── Wake-on-LAN ────────────────────────────────────────────────────────
-wol_enabled: true
+# ─── Tailscale dentro de las VMs ────────────────────────────────────────
+# Por defecto NO. El hipervisor anuncia la subred entera por Tailscale, así
+# que las VMs son alcanzables desde la MacBook sin instalar nada en cada
+# una. Ponlo a true solo si quieres que cada VM sea un nodo del tailnet.
+lab_tailscale_on_vms: false

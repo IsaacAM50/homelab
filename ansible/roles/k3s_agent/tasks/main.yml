@@ -1,0 +1,45 @@
+---
+- name: Localizar el nodo servidor
+  ansible.builtin.set_fact:
+    k3s_agent_server_host: "{{ groups['k3s_server'] | first }}"
+
+- name: Comprobar que el servidor publicó su token
+  ansible.builtin.assert:
+    that: hostvars[k3s_agent_server_host].k3s_server_node_token is defined
+    fail_msg: >-
+      El nodo servidor no ha publicado el token. Ejecuta el playbook
+      entero (no solo --tags k3s_agent): los agentes necesitan que la
+      obra del servidor haya corrido antes en la misma ejecución.
+  when: not ansible_check_mode
+
+- name: Comprobar si k3s ya está instalado
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_agent_bin
+
+- name: Descargar el instalador de k3s
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s-install.sh
+    mode: "0755"
+  when: not k3s_agent_bin.stat.exists
+
+- name: Unir el nodo al clúster
+  ansible.builtin.command: /tmp/k3s-install.sh
+  environment:
+    K3S_URL: "https://{{ hostvars[k3s_agent_server_host].ansible_default_ipv4.address }}:6443"
+    K3S_TOKEN: "{{ hostvars[k3s_agent_server_host].k3s_server_node_token }}"
+    INSTALL_K3S_EXEC: "agent --node-ip={{ ansible_default_ipv4.address }}"
+  args:
+    creates: /usr/local/bin/k3s
+  when:
+    - not k3s_agent_bin.stat.exists
+    - not ansible_check_mode
+  no_log: true
+
+- name: Asegurar que el agente arranca con la máquina
+  ansible.builtin.systemd:
+    name: k3s-agent
+    state: started
+    enabled: true
+  when: not ansible_check_mode

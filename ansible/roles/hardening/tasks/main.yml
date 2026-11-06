@@ -22,14 +22,33 @@
     direction: in
     comment: "Red privada Tailscale"
 
-- name: Permitir la API de k3s desde Tailscale
+# Sin esto el clúster se levanta y NO funciona: los nodos se ven en la red
+# pero el cortafuegos corta el tráfico entre ellos. El síntoma engaña —
+# los nodos aparecen en 'kubectl get nodes' como NotReady, y los pods se
+# quedan en Pending sin decir por qué.
+#
+# La API ya entra por tailscale0 gracias a la regla de arriba; estas son
+# para que los nodos hablen entre sí por la LAN.
+- name: Permitir el tráfico interno del clúster k3s
   community.general.ufw:
     rule: allow
-    port: "6443"
-    proto: tcp
-    src: "100.64.0.0/10"
-    comment: "kube-apiserver sobre Tailscale"
-  when: k3s_enabled | bool
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    src: "{{ lab_lan_cidr }}"
+    comment: "k3s: {{ item.why }}"
+  loop:
+    - port: "6443"
+      proto: tcp
+      why: "apiserver, lo llaman los agentes"
+    - port: "8472"
+      proto: udp
+      why: "flannel VXLAN, la red de pods"
+    - port: "10250"
+      proto: tcp
+      why: "kubelet, metricas y exec"
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto }}"
+  when: "'k3s_server' in group_names or 'k3s_agents' in group_names"
 
 - name: Denegar el resto del tráfico entrante y activar ufw
   community.general.ufw:
