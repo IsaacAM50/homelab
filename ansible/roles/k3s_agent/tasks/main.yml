@@ -27,9 +27,9 @@
 - name: Unir el nodo al clúster
   ansible.builtin.command: /tmp/k3s-install.sh
   environment:
-    K3S_URL: "https://{{ hostvars[k3s_agent_server_host].ansible_default_ipv4.address }}:6443"
+    K3S_URL: "https://{{ hostvars[k3s_agent_server_host].ansible_facts.default_ipv4.address }}:6443"
     K3S_TOKEN: "{{ hostvars[k3s_agent_server_host].k3s_server_node_token }}"
-    INSTALL_K3S_EXEC: "agent --node-ip={{ ansible_default_ipv4.address }}"
+    INSTALL_K3S_EXEC: "agent --node-ip={{ ansible_facts.default_ipv4.address }}"
   args:
     creates: /usr/local/bin/k3s
   when:

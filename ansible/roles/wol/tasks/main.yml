@@ -3,7 +3,7 @@
 # ethtool pierde el ajuste en cada arranque, así que va en un servicio.
 - name: Detectar la interfaz de red principal
   ansible.builtin.set_fact:
-    wol_iface: "{{ ansible_default_ipv4.interface }}"
+    wol_iface: "{{ ansible_facts.default_ipv4.interface }}"
 
 - name: Instalar el servicio de Wake-on-LAN
   ansible.builtin.template:
@@ -23,5 +23,5 @@
   ansible.builtin.debug:
     msg: >-
       Para encenderlo desde la MacBook:
-      wakeonlan {{ ansible_default_ipv4.macaddress }}
+      wakeonlan {{ ansible_facts.default_ipv4.macaddress }}
       (brew install wakeonlan, y tiene que estar en la misma LAN)

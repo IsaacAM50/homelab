@@ -16,12 +16,12 @@ lab_ssh_key: "ssh-ed25519 AAAA... cambia-esto"
 # la subred a mano es el camino corto a cerrarte el SSH: basta con que el
 # router reparta en 192.168.0.x y tú hayas puesto 192.168.1.x.
 # Para fijarla a mano, sobrescribe esta variable con el CIDR que quieras.
-lab_lan_cidr: "{{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.prefix | default('24') }}"
+lab_lan_cidr: "{{ ansible_facts.default_ipv4.network }}/{{ ansible_facts.default_ipv4.prefix | default('24') }}"
 
 # ─── Repositorios apt ───────────────────────────────────────────────────
 # Docker y Tailscale publican por nombre en clave de Ubuntu. Si tu versión
 # es muy nueva y aún no tiene repo propio, fija aquí la anterior LTS.
-apt_release: "{{ ansible_distribution_release }}"
+apt_release: "{{ ansible_facts.distribution_release }}"
 
 # ─── Versiones de herramientas (mise las fija, no 'la última') ──────────
 tool_versions:

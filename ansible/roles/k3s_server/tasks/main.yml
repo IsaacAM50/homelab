@@ -16,8 +16,8 @@
   environment:
     INSTALL_K3S_EXEC: >-
       server {{ k3s_exec_args }}
-      --tls-san={{ ansible_default_ipv4.address }}
-      --node-ip={{ ansible_default_ipv4.address }}
+      --tls-san={{ ansible_facts.default_ipv4.address }}
+      --node-ip={{ ansible_facts.default_ipv4.address }}
   args:
     creates: /usr/local/bin/k3s
   when: not k3s_server_bin.stat.exists
@@ -67,7 +67,7 @@
   ansible.builtin.replace:
     path: "/home/{{ lab_user }}/.kube/config"
     regexp: "https://127\\.0\\.0\\.1:6443"
-    replace: "https://{{ ansible_default_ipv4.address }}:6443"
+    replace: "https://{{ ansible_facts.default_ipv4.address }}:6443"
   when: not ansible_check_mode
 
 - name: Traerse el kubeconfig a la MacBook

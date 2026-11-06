@@ -12,17 +12,22 @@
 
   tasks:
     # ─── Descubrimiento ────────────────────────────────────────────────
+
     - name: Leer la versión de Proxmox
       ansible.builtin.command: pveversion
       register: pve_version
       changed_when: false
       tags: [discover, always]
 
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
+
     - name: Listar los almacenamientos
       ansible.builtin.command: pvesm status
       register: pve_storages
       changed_when: false
       tags: [discover, always]
+
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
 
     - name: Listar los puentes de red
       ansible.builtin.shell: >-
@@ -33,12 +38,14 @@
         executable: /bin/bash
       tags: [discover, always]
 
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
+
     - name: Qué hay en esta máquina
       ansible.builtin.debug:
         msg:
           - "{{ pve_version.stdout }}"
-          - "RAM total: {{ (ansible_memtotal_mb / 1024) | round(1) }} GB"
-          - "CPU: {{ ansible_processor_vcpus }} hilos ({{ ansible_processor[2] | default('?') }})"
+          - "RAM total: {{ (ansible_facts.memtotal_mb / 1024) | round(1) }} GB"
+          - "CPU: {{ ansible_facts.processor_vcpus }} hilos ({{ ansible_facts.processor[2] | default('?') }})"
           - "Almacenamientos ↓"
           - "{{ pve_storages.stdout_lines }}"
           - "Puentes de red ↓"
@@ -56,12 +63,15 @@
       tags: [discover, always]
 
     # ─── Memoria ───────────────────────────────────────────────────────
+
     - name: Comprobar si la raíz está sobre ZFS
       ansible.builtin.command: zpool list -H -o name
       register: pve_zpools
       changed_when: false
       failed_when: false
       tags: [memoria]
+
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
 
     - name: Limitar la caché ARC de ZFS
       ansible.builtin.copy:
@@ -77,6 +87,7 @@
       tags: [memoria]
 
     # ─── Plantilla de VM ───────────────────────────────────────────────
+
     - name: Instalar utilidades necesarias
       ansible.builtin.apt:
         name:
@@ -94,6 +105,8 @@
       failed_when: false
       tags: [plantilla]
 
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
+
     - name: Descargar la imagen cloud de Ubuntu
       ansible.builtin.get_url:
         url: "{{ pve_image_url }}"
@@ -104,6 +117,7 @@
 
     # qemu-guest-agent dentro de la imagen: sin él, Proxmox no sabe la IP
     # de la VM ni puede apagarla de forma limpia.
+
     - name: Meter el agente invitado en la imagen
       ansible.builtin.command: >-
         virt-customize -a /var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img
@@ -153,11 +167,14 @@
       tags: [plantilla]
 
     # ─── Usuario y token para OpenTofu ─────────────────────────────────
+
     - name: Comprobar si el usuario de OpenTofu existe
       ansible.builtin.command: pveum user list --output-format json
       register: pve_users
       changed_when: false
       tags: [token]
+
+      check_mode: false  # lee, no escribe: debe correr tambien en --check
 
     - name: Crear el usuario de OpenTofu
       ansible.builtin.command: pveum user add {{ pve_tf_user }}
@@ -185,6 +202,7 @@
     # solo existe en esta ejecución, dentro de la variable registrada, y
     # tiene que escribirse en el momento. Un handler lo aplazaría al final
     # de la obra sin ganar nada a cambio.
+
     - name: Guardar el token en la MacBook # noqa: no-handler
       ansible.builtin.copy:
         dest: "{{ playbook_dir }}/../terraform/secrets.auto.tfvars"
@@ -211,6 +229,7 @@
       tags: [token]
 
     # ─── Tailscale como router de subred ───────────────────────────────
+
     - name: Comprobar si Tailscale está instalado
       ansible.builtin.stat:
         path: /usr/bin/tailscale
@@ -250,12 +269,16 @@
       tags: [tailscale]
 
     - name: Dar de alta el hipervisor anunciando la subred de las VMs
+      vars:
+        pve_lan_cidr: >-
+          {{ ansible_facts.default_ipv4.network }}/{{
+             ansible_facts.default_ipv4.prefix | default('24') }}
       ansible.builtin.command: >-
         tailscale up
         --authkey={{ vault_tailscale_authkey }}
         --hostname=pve
         --ssh
-        --advertise-routes={{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.prefix | default('24') }}
+        --advertise-routes={{ pve_lan_cidr }}
       when:
         - pve_tailscale_enabled | bool
         - vault_tailscale_authkey is defined

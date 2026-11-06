@@ -20,7 +20,7 @@
 
     - name: Comprobar que es Ubuntu
       ansible.builtin.assert:
-        that: ansible_distribution == "Ubuntu"
+        that: ansible_facts.distribution == "Ubuntu"
         fail_msg: "Este playbook está escrito para Ubuntu Server."
       tags: [always]
 
