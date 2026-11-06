@@ -1,0 +1,23 @@
+# Copia a terraform.tfvars y ajusta. Ese fichero está en .gitignore.
+# El token NO va aquí: lo genera ansible/pve.yml en secrets.auto.tfvars.
+
+pve_endpoint = "https://192.168.1.50:8006"
+pve_node     = "pve"
+
+# Tu instalación es sobre LVM-thin, no ZFS.
+storage = "local-lvm"
+bridge  = "vmbr0"
+
+# La plantilla que ya tenías hecha.
+template_vmid = 9000
+
+# Ajusta a tu red real. Elige un rango POR ENCIMA del que reparte el
+# router por DHCP, para que no choquen las direcciones.
+network_prefix = "192.168.1"
+gateway        = "192.168.1.1"
+
+# El mismo usuario que ya trae tu plantilla en ciuser.
+vm_user = "isaac"
+
+# cat ~/.ssh/id_ed25519.pub
+ssh_public_key = "ssh-ed25519 AAAA... isaac@macbook"

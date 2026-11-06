@@ -1,0 +1,13 @@
+# Secretos y configuración local
+terraform.tfvars
+secrets.auto.tfvars
+
+# Estado: contiene datos sensibles en claro
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log
+
+# El lockfile SÍ se commitea: es lo que fija de verdad la versión del
+# proveedor. Sin él, dos personas instalan versiones distintas.
+!.terraform.lock.hcl

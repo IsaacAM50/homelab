@@ -1,0 +1,31 @@
+---
+# ─── Memoria ────────────────────────────────────────────────────────────
+# ZFS se queda por defecto con la MITAD de la RAM para su caché (ARC).
+# En un equipo de 24 GB eso son 12 GB que las VMs no van a ver nunca, y el
+# síntoma es desconcertante: Proxmox dice que hay memoria libre y las VMs
+# no arrancan. Se limita a 4 GB, que sobra para un lab.
+pve_zfs_arc_max_gb: 4
+
+# ─── Plantilla de VM ────────────────────────────────────────────────────
+pve_template_vmid: 9000
+pve_template_name: ubuntu-2404-cloud
+pve_ubuntu_release: noble
+pve_image_url: >-
+  https://cloud-images.ubuntu.com/{{ pve_ubuntu_release }}/current/{{ pve_ubuntu_release }}-server-cloudimg-amd64.img
+
+# Almacenamiento donde viven los discos de las VMs. `make discover` te dice
+# cuál tienes: suele ser local-lvm (instalación sobre ext4) o
+# local-zfs (instalación sobre ZFS).
+pve_storage: local-lvm
+pve_bridge: vmbr0
+
+# ─── Usuario de OpenTofu ────────────────────────────────────────────────
+# Terraform/OpenTofu entra con un token propio, no con la contraseña de
+# root. Si el token se filtra, se revoca uno solo y no cambias nada más.
+pve_tf_user: terraform@pve
+pve_tf_token_id: tofu
+
+# ─── Tailscale en el hipervisor ─────────────────────────────────────────
+# Anunciando la subred de las VMs, llegas a todas desde la MacBook sin
+# instalar Tailscale dentro de cada una.
+pve_tailscale_enabled: true

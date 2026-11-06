@@ -1,0 +1,273 @@
+---
+# Prepara el hipervisor para que OpenTofu pueda crear VMs contra él.
+# Se ejecuta UNA vez (y es idempotente, así que puedes repetirlo).
+#
+#   ansible-playbook pve.yml --tags discover   # solo mirar, no toca nada
+#   ansible-playbook pve.yml                   # dejarlo listo
+
+- name: Preparar el hipervisor Proxmox
+  hosts: pve
+  become: false
+  gather_facts: true
+
+  tasks:
+    # ─── Descubrimiento ────────────────────────────────────────────────
+    - name: Leer la versión de Proxmox
+      ansible.builtin.command: pveversion
+      register: pve_version
+      changed_when: false
+      tags: [discover, always]
+
+    - name: Listar los almacenamientos
+      ansible.builtin.command: pvesm status
+      register: pve_storages
+      changed_when: false
+      tags: [discover, always]
+
+    - name: Listar los puentes de red
+      ansible.builtin.shell: >-
+        set -o pipefail && ip -br link show type bridge | awk '{print $1, $2}'
+      register: pve_bridges
+      changed_when: false
+      args:
+        executable: /bin/bash
+      tags: [discover, always]
+
+    - name: Qué hay en esta máquina
+      ansible.builtin.debug:
+        msg:
+          - "{{ pve_version.stdout }}"
+          - "RAM total: {{ (ansible_memtotal_mb / 1024) | round(1) }} GB"
+          - "CPU: {{ ansible_processor_vcpus }} hilos ({{ ansible_processor[2] | default('?') }})"
+          - "Almacenamientos ↓"
+          - "{{ pve_storages.stdout_lines }}"
+          - "Puentes de red ↓"
+          - "{{ pve_bridges.stdout_lines }}"
+          - "Configurado para usar: storage={{ pve_storage }} bridge={{ pve_bridge }}"
+      tags: [discover, always]
+
+    - name: Avisar si el almacenamiento configurado no existe
+      ansible.builtin.assert:
+        that: pve_storage in pve_storages.stdout
+        fail_msg: >-
+          El almacenamiento '{{ pve_storage }}' no aparece arriba.
+          Cambia pve_storage en inventory/group_vars/pve.yml por uno de los
+          que sí existen.
+      tags: [discover, always]
+
+    # ─── Memoria ───────────────────────────────────────────────────────
+    - name: Comprobar si la raíz está sobre ZFS
+      ansible.builtin.command: zpool list -H -o name
+      register: pve_zpools
+      changed_when: false
+      failed_when: false
+      tags: [memoria]
+
+    - name: Limitar la caché ARC de ZFS
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/zfs.conf
+        mode: "0644"
+        content: |
+          # Gestionado por ansible (homelab).
+          # Sin este límite ZFS se queda con la mitad de la RAM y las VMs
+          # se quedan sin memoria sin que Proxmox lo avise de forma clara.
+          options zfs zfs_arc_max={{ pve_zfs_arc_max_gb * 1024 * 1024 * 1024 }}
+      when: pve_zpools.stdout | default('') | length > 0
+      notify: Regenerar initramfs
+      tags: [memoria]
+
+    # ─── Plantilla de VM ───────────────────────────────────────────────
+    - name: Instalar utilidades necesarias
+      ansible.builtin.apt:
+        name:
+          - libguestfs-tools
+          - wget
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      tags: [plantilla]
+
+    - name: Comprobar si la plantilla ya existe
+      ansible.builtin.command: qm config {{ pve_template_vmid }}
+      register: pve_template_check
+      changed_when: false
+      failed_when: false
+      tags: [plantilla]
+
+    - name: Descargar la imagen cloud de Ubuntu
+      ansible.builtin.get_url:
+        url: "{{ pve_image_url }}"
+        dest: "/var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img"
+        mode: "0644"
+      when: pve_template_check.rc != 0
+      tags: [plantilla]
+
+    # qemu-guest-agent dentro de la imagen: sin él, Proxmox no sabe la IP
+    # de la VM ni puede apagarla de forma limpia.
+    - name: Meter el agente invitado en la imagen
+      ansible.builtin.command: >-
+        virt-customize -a /var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img
+        --install qemu-guest-agent
+        --run-command 'systemctl enable qemu-guest-agent'
+      when: pve_template_check.rc != 0
+      changed_when: true
+      tags: [plantilla]
+
+    - name: Crear la VM que será plantilla
+      ansible.builtin.command: >-
+        qm create {{ pve_template_vmid }}
+        --name {{ pve_template_name }}
+        --memory 2048 --cores 2 --cpu host
+        --net0 virtio,bridge={{ pve_bridge }}
+        --scsihw virtio-scsi-single
+        --serial0 socket --vga serial0
+        --agent enabled=1
+        --ostype l26
+      when: pve_template_check.rc != 0
+      changed_when: true
+      tags: [plantilla]
+
+    - name: Importar el disco de la imagen
+      ansible.builtin.command: >-
+        qm set {{ pve_template_vmid }}
+        --scsi0 {{ pve_storage }}:0,import-from=/var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img,discard=on,ssd=1
+      when: pve_template_check.rc != 0
+      changed_when: true
+      tags: [plantilla]
+
+    - name: Añadir la unidad de cloud-init y el arranque
+      ansible.builtin.command: >-
+        qm set {{ pve_template_vmid }}
+        --ide2 {{ pve_storage }}:cloudinit
+        --boot order=scsi0
+      when: pve_template_check.rc != 0
+      changed_when: true
+      tags: [plantilla]
+
+    - name: Convertirla en plantilla
+      ansible.builtin.command: qm template {{ pve_template_vmid }}
+      when: pve_template_check.rc != 0
+      changed_when: true
+      tags: [plantilla]
+
+    # ─── Usuario y token para OpenTofu ─────────────────────────────────
+    - name: Comprobar si el usuario de OpenTofu existe
+      ansible.builtin.command: pveum user list --output-format json
+      register: pve_users
+      changed_when: false
+      tags: [token]
+
+    - name: Crear el usuario de OpenTofu
+      ansible.builtin.command: pveum user add {{ pve_tf_user }}
+      when: pve_tf_user not in pve_users.stdout
+      changed_when: true
+      tags: [token]
+
+    - name: Darle permisos sobre el datacenter
+      ansible.builtin.command: >-
+        pveum acl modify / --users {{ pve_tf_user }} --roles PVEAdmin
+      changed_when: false
+      tags: [token]
+
+    - name: Crear el token de API
+      ansible.builtin.command: >-
+        pveum user token add {{ pve_tf_user }} {{ pve_tf_token_id }}
+        --privsep 0 --output-format json
+      register: pve_token
+      when: pve_tf_user not in pve_users.stdout
+      changed_when: true
+      no_log: true
+      tags: [token]
+
+    - name: Guardar el token en la MacBook
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../terraform/secrets.auto.tfvars"
+        mode: "0600"
+        content: |
+          # Generado por ansible/pve.yml. Está en .gitignore: NO lo subas.
+          # Si lo pierdes, borra el token en Proxmox y vuelve a ejecutar:
+          #   pveum user token remove {{ pve_tf_user }} {{ pve_tf_token_id }}
+          pve_api_token = "{{ pve_tf_user }}!{{ pve_tf_token_id }}={{ (pve_token.stdout | from_json).value }}"
+      when: pve_token is changed
+      delegate_to: localhost
+      become: false
+      no_log: true
+      tags: [token]
+
+    - name: Aviso si el token ya existía
+      ansible.builtin.debug:
+        msg: >-
+          El usuario {{ pve_tf_user }} ya existía, así que no se ha creado token
+          nuevo (el secreto solo se enseña una vez). Si no tienes
+          terraform/secrets.auto.tfvars, borra el token y repite:
+          pveum user token remove {{ pve_tf_user }} {{ pve_tf_token_id }}
+      when: pve_token is not changed
+      tags: [token]
+
+    # ─── Tailscale como router de subred ───────────────────────────────
+    - name: Comprobar si Tailscale está instalado
+      ansible.builtin.stat:
+        path: /usr/bin/tailscale
+      register: pve_ts_bin
+      when: pve_tailscale_enabled | bool
+      tags: [tailscale]
+
+    - name: Descargar el instalador de Tailscale
+      ansible.builtin.get_url:
+        url: https://tailscale.com/install.sh
+        dest: /tmp/tailscale-install.sh
+        mode: "0755"
+      when:
+        - pve_tailscale_enabled | bool
+        - not pve_ts_bin.stat.exists
+      tags: [tailscale]
+
+    - name: Instalar Tailscale
+      ansible.builtin.command: /tmp/tailscale-install.sh
+      args:
+        creates: /usr/bin/tailscale
+      when:
+        - pve_tailscale_enabled | bool
+        - not pve_ts_bin.stat.exists
+      tags: [tailscale]
+
+    - name: Permitir el reenvío de paquetes
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: "1"
+        sysctl_file: /etc/sysctl.d/99-tailscale.conf
+        reload: true
+      loop:
+        - net.ipv4.ip_forward
+        - net.ipv6.conf.all.forwarding
+      when: pve_tailscale_enabled | bool
+      tags: [tailscale]
+
+    - name: Dar de alta el hipervisor anunciando la subred de las VMs
+      ansible.builtin.command: >-
+        tailscale up
+        --authkey={{ vault_tailscale_authkey }}
+        --hostname=pve
+        --ssh
+        --advertise-routes={{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.prefix | default('24') }}
+      when:
+        - pve_tailscale_enabled | bool
+        - vault_tailscale_authkey is defined
+      changed_when: true
+      no_log: true
+      tags: [tailscale]
+
+    - name: Recordatorio sobre la ruta anunciada
+      ansible.builtin.debug:
+        msg: >-
+          Aprueba la ruta anunciada en
+          https://login.tailscale.com/admin/machines (pve → Edit route
+          settings). Hasta que no la apruebes, las VMs no son alcanzables
+          desde la MacBook.
+      when: pve_tailscale_enabled | bool
+      tags: [tailscale]
+
+  handlers:
+    - name: Regenerar initramfs
+      ansible.builtin.command: update-initramfs -u -k all
+      changed_when: true

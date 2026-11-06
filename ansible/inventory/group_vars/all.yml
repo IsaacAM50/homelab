@@ -11,7 +11,12 @@ lab_ssh_key: "ssh-ed25519 AAAA... cambia-esto"
 # ─── Red ────────────────────────────────────────────────────────────────
 # Subred de casa. Se permite SSH desde aquí ADEMÁS de por Tailscale,
 # como seguro contra quedarte fuera si Tailscale falla.
-lab_lan_cidr: "192.168.1.0/24"
+#
+# Se detecta sola a partir de la interfaz por defecto del equipo. Escribir
+# la subred a mano es el camino corto a cerrarte el SSH: basta con que el
+# router reparta en 192.168.0.x y tú hayas puesto 192.168.1.x.
+# Para fijarla a mano, sobrescribe esta variable con el CIDR que quieras.
+lab_lan_cidr: "{{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.prefix | default('24') }}"
 
 # ─── Repositorios apt ───────────────────────────────────────────────────
 # Docker y Tailscale publican por nombre en clave de Ubuntu. Si tu versión
