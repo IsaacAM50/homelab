@@ -128,9 +128,11 @@
       tags: [plantilla]
 
     - name: Importar el disco de la imagen
+      vars:
+        pve_image_path: "/var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img"
       ansible.builtin.command: >-
         qm set {{ pve_template_vmid }}
-        --scsi0 {{ pve_storage }}:0,import-from=/var/lib/vz/template/iso/{{ pve_ubuntu_release }}-cloudimg.img,discard=on,ssd=1
+        --scsi0 {{ pve_storage }}:0,import-from={{ pve_image_path }},discard=on,ssd=1
       when: pve_template_check.rc != 0
       changed_when: true
       tags: [plantilla]
@@ -179,7 +181,11 @@
       no_log: true
       tags: [token]
 
-    - name: Guardar el token en la MacBook
+    # El linter sugiere convertirlo en handler. Aquí no procede: el secreto
+    # solo existe en esta ejecución, dentro de la variable registrada, y
+    # tiene que escribirse en el momento. Un handler lo aplazaría al final
+    # de la obra sin ganar nada a cambio.
+    - name: Guardar el token en la MacBook # noqa: no-handler
       ansible.builtin.copy:
         dest: "{{ playbook_dir }}/../terraform/secrets.auto.tfvars"
         mode: "0600"
