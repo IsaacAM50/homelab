@@ -1,0 +1,9 @@
+# Secretos: la clave del vault NUNCA se sube
+.vault-pass
+inventory/group_vars/vault.yml
+
+# Estado local
+*.retry
+.ansible/
+__pycache__/
+.DS_Store

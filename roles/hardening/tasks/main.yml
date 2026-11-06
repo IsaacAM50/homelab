@@ -1,0 +1,87 @@
+---
+# Orden importante: el cortafuegos se abre ANTES de cerrar el SSH por
+# contraseña. Al revés te quedas fuera de tu propia máquina, y es el error
+# más repetido de todo el homelab.
+- name: Instalar ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Permitir SSH desde la red de casa
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    src: "{{ lab_lan_cidr }}"
+    comment: "SSH desde la LAN (seguro por si Tailscale falla)"
+
+- name: Permitir todo el tráfico de la interfaz de Tailscale
+  community.general.ufw:
+    rule: allow
+    interface: tailscale0
+    direction: in
+    comment: "Red privada Tailscale"
+
+- name: Permitir la API de k3s desde Tailscale
+  community.general.ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+    src: "100.64.0.0/10"
+    comment: "kube-apiserver sobre Tailscale"
+  when: k3s_enabled | bool
+
+- name: Denegar el resto del tráfico entrante y activar ufw
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Permitir todo el tráfico saliente
+  community.general.ufw:
+    policy: allow
+    direction: outgoing
+
+- name: Endurecer la configuración de SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?\\s*{{ item.k }}"
+    line: "{{ item.k }} {{ item.v }}"
+    state: present
+    validate: "sshd -t -f %s"
+  loop:
+    - k: PasswordAuthentication
+      v: "no"
+    - k: KbdInteractiveAuthentication
+      v: "no"
+    - k: PermitRootLogin
+      v: "no"
+    - k: X11Forwarding
+      v: "no"
+    - k: MaxAuthTries
+      v: "3"
+    - k: ClientAliveInterval
+      v: "300"
+  loop_control:
+    label: "{{ item.k }}"
+  notify: Reiniciar sshd
+
+# Ubuntu 24.04+ reparte la config en ficheros sueltos que pueden volver a
+# activar la contraseña después de lo anterior. Esto los desactiva.
+- name: Buscar fragmentos de configuración que reactiven la contraseña
+  ansible.builtin.find:
+    paths: /etc/ssh/sshd_config.d
+    patterns: "*.conf"
+    contains: "^\\s*PasswordAuthentication\\s+yes"
+  register: hardening_ssh_drop_ins
+
+- name: Neutralizar esos fragmentos
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: "^(\\s*PasswordAuthentication\\s+)yes"
+    replace: "\\1no"
+    validate: "sshd -t -f /etc/ssh/sshd_config"
+  loop: "{{ hardening_ssh_drop_ins.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Reiniciar sshd

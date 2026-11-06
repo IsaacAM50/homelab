@@ -1,0 +1,12 @@
+[Unit]
+Description=Activar Wake-on-LAN en {{ wol_iface }}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ethtool -s {{ wol_iface }} wol g
+
+[Install]
+WantedBy=multi-user.target

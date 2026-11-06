@@ -1,0 +1,81 @@
+---
+# mise gestiona las versiones de todo lo demás. La alternativa —instalar
+# cada binario a mano— deja una máquina que nadie puede reproducir, que es
+# justo lo contrario de lo que demuestra este proyecto.
+- name: Comprobar si mise está instalado
+  ansible.builtin.stat:
+    path: /usr/local/bin/mise
+  register: tooling_mise_bin
+
+- name: Añadir la clave GPG de mise
+  ansible.builtin.get_url:
+    url: https://mise.jdx.dev/gpg-key.pub
+    dest: /etc/apt/keyrings/mise.asc
+    mode: "0644"
+
+- name: Añadir el repositorio de mise
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/mise.asc arch=amd64] https://mise.jdx.dev/deb stable main"
+    filename: mise
+    state: present
+
+- name: Instalar mise
+  ansible.builtin.apt:
+    name: mise
+    state: present
+    update_cache: true
+
+- name: Crear el directorio de configuración de mise
+  ansible.builtin.file:
+    path: "/home/{{ lab_user }}/.config/mise"
+    state: directory
+    owner: "{{ lab_user }}"
+    group: "{{ lab_user }}"
+    mode: "0755"
+
+- name: Escribir el fichero de versiones
+  ansible.builtin.copy:
+    dest: "/home/{{ lab_user }}/.config/mise/config.toml"
+    owner: "{{ lab_user }}"
+    group: "{{ lab_user }}"
+    mode: "0644"
+    content: |
+      # Versiones fijadas a propósito. "latest" convierte una máquina
+      # reproducible en una que funciona hoy y no mañana.
+      [tools]
+      {% for name, version in tool_versions.items() %}
+      {{ name }} = "{{ version }}"
+      {% endfor %}
+
+- name: Instalar las herramientas fijadas
+  ansible.builtin.command: mise install --yes
+  become: true
+  become_user: "{{ lab_user }}"
+  args:
+    chdir: "/home/{{ lab_user }}"
+  register: tooling_mise_install
+  changed_when: "'installed' in tooling_mise_install.stdout | lower"
+  when: not ansible_check_mode
+
+- name: Activar mise y direnv en el shell
+  ansible.builtin.blockinfile:
+    path: "/home/{{ lab_user }}/.bashrc"
+    create: true
+    owner: "{{ lab_user }}"
+    group: "{{ lab_user }}"
+    mode: "0644"
+    marker: "# {mark} gestionado por ansible (homelab)"
+    block: |
+      eval "$(mise activate bash)"
+      eval "$(direnv hook bash)"
+      export KUBECONFIG="$HOME/.kube/config"
+      alias k=kubectl
+      complete -o default -F __start_kubectl k
+
+- name: Instalar la CLI de GitHub y la de AWS
+  ansible.builtin.apt:
+    name:
+      - gh
+      - awscli
+    state: present
+  failed_when: false

@@ -1,0 +1,110 @@
+---
+- name: Actualizar la caché de apt
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Instalar el paquete base
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - ca-certificates
+      - curl
+      - direnv
+      - dnsutils
+      - ethtool
+      - git
+      - gnupg
+      - htop
+      - jq
+      - ncdu
+      - net-tools
+      - python3-pip
+      - ripgrep
+      - rsync
+      - tmux
+      - tree
+      - unzip
+      - vim
+    state: present
+
+- name: Fijar la zona horaria
+  community.general.timezone:
+    name: "{{ lab_timezone }}"
+
+- name: Crear el usuario de trabajo
+  ansible.builtin.user:
+    name: "{{ lab_user }}"
+    shell: "{{ lab_user_shell }}"
+    groups: [sudo]
+    append: true
+    create_home: true
+    state: present
+
+- name: Instalar la clave pública
+  ansible.posix.authorized_key:
+    user: "{{ lab_user }}"
+    key: "{{ lab_ssh_key }}"
+    state: present
+    exclusive: false
+
+- name: Permitir sudo sin contraseña al usuario de trabajo
+  ansible.builtin.copy:
+    content: "{{ lab_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/90-{{ lab_user }}"
+    mode: "0440"
+    owner: root
+    group: root
+    validate: "visudo -cf %s"
+
+# Los límites de inotify por defecto de Ubuntu se agotan con pocos pods y
+# producen errores que no parecen de inotify: "too many open files" en
+# kubelet, builds que se cuelgan, Argo CD que deja de ver cambios.
+- name: Subir los límites del kernel que Kubernetes agota
+  ansible.posix.sysctl:
+    name: "{{ item.k }}"
+    value: "{{ item.v }}"
+    sysctl_file: /etc/sysctl.d/99-lab.conf
+    reload: true
+    state: present
+  loop:
+    - k: fs.inotify.max_user_instances
+      v: "1024"
+    - k: fs.inotify.max_user_watches
+      v: "524288"
+    - k: fs.file-max
+      v: "2097152"
+    - k: vm.max_map_count
+      v: "262144"
+    - k: vm.swappiness
+      v: "10"
+    - k: net.ipv4.ip_forward
+      v: "1"
+    - k: net.bridge.bridge-nf-call-iptables
+      v: "1"
+  loop_control:
+    label: "{{ item.k }}"
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Instalar actualizaciones de seguridad desatendidas
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: Configurar las actualizaciones desatendidas
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+  notify: Reiniciar unattended-upgrades
+
+- name: Desactivar el arranque gráfico por si el instalador lo dejó puesto
+  ansible.builtin.systemd:
+    name: multi-user.target
+    enabled: true
+  changed_when: false

@@ -1,0 +1,8 @@
+---
+profile: production
+exclude_paths:
+  - .github/
+skip_list:
+  # Los instaladores oficiales de Tailscale y k3s se ejecutan con
+  # 'command' + creates:, que es idempotente aunque el linter no lo vea.
+  - command-instead-of-module

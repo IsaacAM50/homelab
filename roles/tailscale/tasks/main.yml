@@ -1,0 +1,56 @@
+---
+- name: Comprobar si Tailscale ya está instalado
+  ansible.builtin.stat:
+    path: /usr/bin/tailscale
+  register: tailscale_bin
+
+# El instalador oficial resuelve solo el repo apt de cada versión de
+# Ubuntu. Es más robusto que fijar el nombre en clave a mano, que se rompe
+# cada vez que sale una LTS nueva.
+- name: Descargar el instalador de Tailscale
+  ansible.builtin.get_url:
+    url: https://tailscale.com/install.sh
+    dest: /tmp/tailscale-install.sh
+    mode: "0755"
+  when: not tailscale_bin.stat.exists
+
+- name: Instalar Tailscale
+  ansible.builtin.command: /tmp/tailscale-install.sh
+  args:
+    creates: /usr/bin/tailscale
+  when: not tailscale_bin.stat.exists
+
+- name: Arrancar el servicio
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Leer el estado de la red
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Unir el equipo a la red privada
+  ansible.builtin.command: >-
+    tailscale up
+    --authkey={{ vault_tailscale_authkey }}
+    --hostname={{ inventory_hostname }}
+    --ssh
+    --accept-routes
+  when:
+    - vault_tailscale_authkey is defined
+    - (tailscale_status.stdout | default('{}') | from_json).BackendState | default('') != 'Running'
+  no_log: true
+  changed_when: true
+
+- name: Obtener la IP de Tailscale
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+  failed_when: false
+
+- name: Mostrar la IP de la red privada
+  ansible.builtin.debug:
+    msg: "Tailscale: {{ tailscale_ip.stdout | default('sin conectar') }}"

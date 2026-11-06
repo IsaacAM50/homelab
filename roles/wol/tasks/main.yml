@@ -1,0 +1,27 @@
+---
+# Es un sobremesa: lo vas a querer apagado y encendido desde la MacBook.
+# ethtool pierde el ajuste en cada arranque, así que va en un servicio.
+- name: Detectar la interfaz de red principal
+  ansible.builtin.set_fact:
+    wol_iface: "{{ ansible_default_ipv4.interface }}"
+
+- name: Instalar el servicio de Wake-on-LAN
+  ansible.builtin.template:
+    src: wol.service.j2
+    dest: /etc/systemd/system/wol.service
+    mode: "0644"
+  notify: Recargar systemd
+
+- name: Activar el servicio
+  ansible.builtin.systemd:
+    name: wol
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Mostrar la MAC para despertar el equipo
+  ansible.builtin.debug:
+    msg: >-
+      Para encenderlo desde la MacBook:
+      wakeonlan {{ ansible_default_ipv4.macaddress }}
+      (brew install wakeonlan, y tiene que estar en la misma LAN)

@@ -1,0 +1,8 @@
+---
+# Copia este fichero a vault.yml y cífralo:
+#   cp inventory/group_vars/vault.yml.example inventory/group_vars/vault.yml
+#   ansible-vault encrypt inventory/group_vars/vault.yml
+#
+# La clave de Tailscale se saca en https://login.tailscale.com/admin/settings/keys
+# Usa una 'reusable' con caducidad corta: solo hace falta en el primer arranque.
+vault_tailscale_authkey: "tskey-auth-xxxxxxxxxxxx"

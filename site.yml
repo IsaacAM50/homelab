@@ -1,0 +1,57 @@
+---
+- name: Montar el equipo de laboratorio desde cero
+  hosts: lab
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Comprobar que la clave SSH está configurada
+      ansible.builtin.assert:
+        that:
+          - lab_ssh_key is defined
+          - "'cambia-esto' not in lab_ssh_key"
+        fail_msg: >-
+          Pon tu clave pública en inventory/group_vars/all.yml (lab_ssh_key).
+          Sin eso, el rol de hardening te dejaría fuera de la máquina.
+      tags: [always]
+
+    - name: Comprobar que es Ubuntu
+      ansible.builtin.assert:
+        that: ansible_distribution == "Ubuntu"
+        fail_msg: "Este playbook está escrito para Ubuntu Server."
+      tags: [always]
+
+  roles:
+    - role: base
+      tags: [base]
+
+    - role: tailscale
+      tags: [tailscale, red]
+
+    # Después de Tailscale: el cortafuegos necesita que exista tailscale0
+    # antes de abrirle paso, y el SSH se cierra con la red ya puesta.
+    - role: hardening
+      tags: [hardening, seguridad]
+
+    - role: docker
+      tags: [docker, contenedores]
+
+    - role: tooling
+      tags: [tooling, herramientas]
+
+    - role: k3s
+      tags: [k3s, kubernetes]
+      when: k3s_enabled | bool
+
+    - role: wol
+      tags: [wol]
+      when: wol_enabled | bool
+
+  post_tasks:
+    - name: Resumen
+      ansible.builtin.debug:
+        msg:
+          - "Equipo listo: {{ inventory_hostname }} ({{ ansible_distribution }} {{ ansible_distribution_version }})"
+          - "Entra con: ssh {{ lab_user }}@lab"
+          - "k3s: {{ 'activo' if k3s_enabled else 'desactivado' }}"
+      tags: [always]

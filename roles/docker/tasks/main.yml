@@ -1,0 +1,58 @@
+---
+- name: Crear el directorio de claves apt
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Añadir la clave GPG de Docker
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Añadir el repositorio de Docker
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ apt_release }} stable
+    filename: docker
+    state: present
+
+- name: Instalar Docker
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+# Sin esto, los logs de un contenedor con mucha salida llenan el disco y
+# tiras abajo la máquina entera. Pasa de verdad y no avisa.
+- name: Limitar el tamaño de los logs de Docker
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "20m", "max-file": "3" },
+        "live-restore": true
+      }
+  notify: Reiniciar docker
+
+- name: Añadir el usuario al grupo docker
+  ansible.builtin.user:
+    name: "{{ lab_user }}"
+    groups: docker
+    append: true
+
+- name: Arrancar Docker
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true

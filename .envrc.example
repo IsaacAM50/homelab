@@ -1,0 +1,5 @@
+# Copia a .envrc y ejecuta: direnv allow
+#
+# La clave del vault vive fuera del repo. Si prefieres que te la pida por
+# teclado, borra esta línea y usa: make apply ANSIBLE_ASK_VAULT_PASS=1
+export ANSIBLE_VAULT_PASSWORD_FILE="$PWD/.vault-pass"

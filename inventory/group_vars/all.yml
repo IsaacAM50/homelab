@@ -1,0 +1,39 @@
+---
+# ─── Usuario ────────────────────────────────────────────────────────────
+lab_user: isaac
+lab_user_shell: /bin/bash
+lab_timezone: Europe/Madrid
+
+# Clave pública con la que entras desde la MacBook.
+# Sácala con: cat ~/.ssh/id_ed25519.pub
+lab_ssh_key: "ssh-ed25519 AAAA... cambia-esto"
+
+# ─── Red ────────────────────────────────────────────────────────────────
+# Subred de casa. Se permite SSH desde aquí ADEMÁS de por Tailscale,
+# como seguro contra quedarte fuera si Tailscale falla.
+lab_lan_cidr: "192.168.1.0/24"
+
+# ─── Repositorios apt ───────────────────────────────────────────────────
+# Docker y Tailscale publican por nombre en clave de Ubuntu. Si tu versión
+# es muy nueva y aún no tiene repo propio, fija aquí la anterior LTS.
+apt_release: "{{ ansible_distribution_release }}"
+
+# ─── Versiones de herramientas (mise las fija, no 'la última') ──────────
+tool_versions:
+  terraform: "1.13.3"
+  opentofu: "1.10.6"
+  kubectl: "1.34.1"
+  helm: "3.19.0"
+  k9s: "0.50.9"
+  kustomize: "5.7.1"
+  argocd: "3.1.5"
+  yq: "4.47.1"
+
+# ─── k3s ────────────────────────────────────────────────────────────────
+k3s_enabled: true
+# Traefik fuera: en R1 instalas tu propio ingress o Gateway API.
+# servicelb fuera: usarás MetalLB, que es lo que se parece a la realidad.
+k3s_exec_args: "--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644"
+
+# ─── Wake-on-LAN ────────────────────────────────────────────────────────
+wol_enabled: true
