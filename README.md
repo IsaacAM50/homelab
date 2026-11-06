@@ -10,6 +10,9 @@ make pve && make vms && make config
 
 Hardware: Ryzen 5 3600X, 24 GB, Proxmox sobre LVM-thin.
 
+> ¿Primera vez con Terraform o Ansible? **[CONCEPTOS.md](CONCEPTOS.md)** explica
+> el modelo de las dos herramientas usando las roturas de este repo como ejemplos.
+
 ## El problema
 
 Un homelab configurado a mano es un montón de decisiones que solo existen
