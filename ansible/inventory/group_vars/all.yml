@@ -5,8 +5,12 @@ lab_user_shell: /bin/bash
 lab_timezone: Europe/Madrid
 
 # Clave pública con la que entras desde la MacBook.
-# Sácala con: cat ~/.ssh/id_ed25519.pub
-lab_ssh_key: "ssh-ed25519 AAAA... cambia-esto"
+#
+# Se lee del mismo fichero que usa OpenTofu en terraform.tfvars, en vez de
+# copiarla aquí a mano. Tener la misma clave escrita en dos sitios es
+# garantizar que un día no coincidan, y el síntoma sería perder el acceso
+# a las seis VMs a la vez.
+lab_ssh_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_ed25519.pub') }}"
 
 # ─── Red ────────────────────────────────────────────────────────────────
 # Subred de casa. Se permite SSH desde aquí ADEMÁS de por Tailscale,
