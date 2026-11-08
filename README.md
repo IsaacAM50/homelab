@@ -12,6 +12,9 @@ Hardware: Ryzen 5 3600X, 24 GB, Proxmox sobre LVM-thin.
 
 > ¿Primera vez con Terraform o Ansible? **[CONCEPTOS.md](CONCEPTOS.md)** explica
 > el modelo de las dos herramientas usando las roturas de este repo como ejemplos.
+>
+> **[HARDWARE.md](HARDWARE.md)** recoge lo que hay de verdad en la máquina:
+> VRAM real, grupos IOMMU, reparto de memoria y los límites que condicionan el resto.
 
 ## El problema
 
