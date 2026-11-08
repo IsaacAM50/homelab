@@ -3,7 +3,7 @@
 # terraform/outputs.tf, no se escribe a mano.
 
 - name: Base común a todas las máquinas
-  hosts: k3s_server:k3s_agents:storage:lb:monitoring
+  hosts: k3s_server:k3s_agents
   become: true
   gather_facts: true
 

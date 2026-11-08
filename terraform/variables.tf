@@ -80,16 +80,17 @@ variable "vms" {
     group  = string
   }))
 
-  # Misma topología que ya tenías a mano, pero declarada. Los VMIDs van en
-  # el rango 2xx a propósito: 101-106 siguen ocupados por las VMs
-  # artesanales, así que esto se construye AL LADO sin tocarlas. Cuando el
-  # clúster declarado funcione, retiras las viejas tú.
+  # Reparto de los 23 GB del equipo. La memoria es el recurso que limita
+  # todo lo demás, así que cada GB asignado a una VM que no hace nada es un
+  # GB que no tiene el nodo de inferencia.
+  #
+  # storage-01, lb-01 y monitoring-01 se retiraron: el almacenamiento lo
+  # resuelve local-path dentro del clúster, el balanceo lo hace MetalLB
+  # como carga de trabajo, y Prometheus va mejor DENTRO de Kubernetes que
+  # en su propia máquina. Tres VMs menos, 7 GB recuperados.
   default = {
-    "master-01"     = { vmid = 201, host = 201, cores = 2, memory = 4096, disk = 32, group = "k3s_server" }
-    "worker-01"     = { vmid = 202, host = 202, cores = 2, memory = 4096, disk = 32, group = "k3s_agents" }
-    "worker-02"     = { vmid = 203, host = 203, cores = 2, memory = 4096, disk = 32, group = "k3s_agents" }
-    "storage-01"    = { vmid = 204, host = 204, cores = 2, memory = 2048, disk = 96, group = "storage" }
-    "lb-01"         = { vmid = 205, host = 205, cores = 1, memory = 1024, disk = 16, group = "lb" }
-    "monitoring-01" = { vmid = 206, host = 206, cores = 2, memory = 4096, disk = 64, group = "monitoring" }
+    "master-01" = { vmid = 201, host = 201, cores = 2, memory = 4096, disk = 32, group = "k3s_server" }
+    "worker-01" = { vmid = 202, host = 202, cores = 2, memory = 4096, disk = 32, group = "k3s_agents" }
+    "worker-02" = { vmid = 203, host = 203, cores = 2, memory = 4096, disk = 32, group = "k3s_agents" }
   }
 }
