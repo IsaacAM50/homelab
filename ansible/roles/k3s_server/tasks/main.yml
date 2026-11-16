@@ -69,12 +69,27 @@
 #
 # El cambio de 127.0.0.1 por la IP es lo que hace que el mismo fichero
 # sirva desde la MacBook y no solo dentro del nodo.
+#
+# También se renombra todo lo que k3s llama 'default'. Ese nombre genérico
+# choca con cualquier otro kubeconfig al fusionarlos: las entradas se
+# indexan por nombre, así que un 'default' pisa al otro y acabas con un
+# contexto que no sabes a qué clúster apunta.
+#
+# Las sustituciones llevan la indentación exacta a propósito. Un replace
+# del texto 'default' a secas podría tocar los datos del certificado, que
+# son base64 y pueden contener esa secuencia por casualidad.
 - name: Escribir el kubeconfig del usuario apuntando a la IP del nodo
   ansible.builtin.copy:
     content: >-
       {{ k3s_server_kubeconfig_raw.content | b64decode
          | replace('https://127.0.0.1:6443',
-                   'https://' ~ ansible_facts.default_ipv4.address ~ ':6443') }}
+                   'https://' ~ ansible_facts.default_ipv4.address ~ ':6443')
+         | replace('\n  name: default', '\n  name: ' ~ k3s_context_name)
+         | replace('\n- name: default', '\n- name: ' ~ k3s_context_name)
+         | replace('\n    cluster: default', '\n    cluster: ' ~ k3s_context_name)
+         | replace('\n    user: default', '\n    user: ' ~ k3s_context_name)
+         | replace('\ncurrent-context: default',
+                   '\ncurrent-context: ' ~ k3s_context_name) }}
     dest: "/home/{{ lab_user }}/.kube/config"
     owner: "{{ lab_user }}"
     group: "{{ lab_user }}"

@@ -46,6 +46,11 @@ tool_versions:
 # servicelb fuera: usarás MetalLB, que es lo que se parece a la realidad.
 k3s_exec_args: "--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644"
 
+# Nombre del clúster, el usuario y el contexto dentro del kubeconfig.
+# k3s los llama a los tres 'default', que choca con cualquier otro
+# kubeconfig al fusionarlos.
+k3s_context_name: homelab
+
 # ─── Tailscale dentro de las VMs ────────────────────────────────────────
 # Por defecto NO. El hipervisor anuncia la subred entera por Tailscale, así
 # que las VMs son alcanzables desde la MacBook sin instalar nada en cada
